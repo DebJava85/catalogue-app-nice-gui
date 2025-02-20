@@ -1,8 +1,5 @@
 import sqlite3
-import csv
 import json
-import datetime
-import asyncio
 from nicegui import ui
 
 # Database Setup
@@ -56,17 +53,11 @@ def update_entry(entry_id, field, value):
     conn.commit()
     refresh_catalogue()
 
-# Check and show reminders
-async def check_reminders():
-    while True:
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        cursor.execute("SELECT id, title, reminder FROM catalogue WHERE reminder=?", (now,))
-        reminders = cursor.fetchall()
-
-        for entry_id, title, reminder in reminders:
-            ui.notify(f"⏰ Reminder: {title} is due!", color="red")
-
-        await asyncio.sleep(60)  # Check every minute
+# Delete entry
+def delete_entry(entry_id):
+    cursor.execute("DELETE FROM catalogue WHERE id=?", (entry_id,))
+    conn.commit()
+    refresh_catalogue()
 
 # Refresh UI
 def refresh_catalogue():
@@ -122,9 +113,6 @@ with ui.column().classes('w-full max-w-3xl mx-auto'):
         ui.select(["All", "URL", "Property", "Other"], value="All", on_change=lambda value: update_entry("category", value))
 
     table_container = ui.column().classes('mt-4')
-
-# Start checking reminders in the background
-ui.run_task(check_reminders())
 
 refresh_catalogue()
 ui.run()
