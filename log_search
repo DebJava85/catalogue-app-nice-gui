@@ -1,0 +1,59 @@
+import streamlit as st
+import pandas as pd
+import re
+import time
+
+LOG_FILE = "logs.txt"  # Change to your log file path
+
+# Function to read logs dynamically
+def read_logs():
+    with open(LOG_FILE, "r") as f:
+        lines = f.readlines()
+    return [line.strip() for line in lines]
+
+# Function to parse structured logs (key=value format)
+def parse_log_line(line):
+    matches = re.findall(r'(\w+)=(".*?"|\S+)', line)
+    return {key: value.strip('"') for key, value in matches} if matches else {"raw_log": line}
+
+# Load logs
+raw_logs = read_logs()
+parsed_logs = [parse_log_line(line) for line in raw_logs]
+
+# Convert to DataFrame
+log_df = pd.DataFrame(parsed_logs)
+
+st.title("🔍 Dynamic Log Viewer (Splunk Alternative)")
+
+# Full-text search
+search_query = st.text_input("Search logs", "")
+
+# Auto-detect fields
+detected_fields = list(log_df.columns)
+
+# Dynamic filters (only for structured logs)
+filters = {}
+for field in detected_fields:
+    if field != "raw_log":  # Skip raw log column for filters
+        unique_values = log_df[field].dropna().unique().tolist()
+        if len(unique_values) <= 10:  # Show dropdown if values are limited
+            filters[field] = st.selectbox(f"Filter by {field}", ["ALL"] + unique_values)
+
+# Apply full-text search
+filtered_logs = log_df.copy()
+if search_query:
+    filtered_logs = filtered_logs[
+        filtered_logs.astype(str).apply(lambda row: row.str.contains(search_query, case=False, na=False)).any(axis=1)
+    ]
+
+# Apply filters dynamically
+for field, selected_value in filters.items():
+    if selected_value != "ALL":
+        filtered_logs = filtered_logs[filtered_logs[field] == selected_value]
+
+# Display logs
+st.dataframe(filtered_logs, use_container_width=True)
+
+# Auto-refresh every 5 seconds
+time.sleep(5)
+st.experimental_rerun()
